@@ -18,7 +18,7 @@ from gretel_synthetics.timeseries_dgan.config import DGANConfig, OutputType
 
 
 # 0.0 RAW DATA ----
-time_line = 370
+time_line = 360
 
 
 
@@ -65,7 +65,7 @@ df_long \
 
 
 # 2.0 MODELING & TRAINING ----
-sample_length = int(np.round(time_line / 10))
+sample_length = int(np.round(time_line / 24))
 
 # Train the model
 model = DGAN(DGANConfig(
@@ -86,7 +86,7 @@ model.train_dataframe(
 
 
 # Generate synthetic data
-synthetic_df = model.generate_dataframe(2)
+synthetic_df = model.generate_dataframe(3)
 synthetic_df
 
 
@@ -170,7 +170,7 @@ def sample_and_concatenate(df_long, synthetic_prepared, num_samples=5):
 
 
 # Apply the function and get the concatenated dataframe
-results_bound = sample_and_concatenate(df_long, synthetic_prepared, num_samples=2)
+results_bound = sample_and_concatenate(df_long, synthetic_prepared, num_samples=3)
 
 
 results_bound.glimpse()
@@ -188,16 +188,6 @@ results_bound \
         smooth = False,
         smooth_alpha = 0
     )
-
-fig = px.line(results_bound, x='date', y='value', color='type', line_group='listing_id', title='Real vs. Synthetic Data')
-
-# Update axis titles
-fig.update_xaxes(title='Date')
-fig.update_yaxes(title='Value')
-
-# Show the plot
-fig.show()
-
 
 
 
