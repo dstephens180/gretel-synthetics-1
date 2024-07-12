@@ -8,6 +8,7 @@ import pytimetk as tk
 import plotly.graph_objs as go
 import plotly.express as px
 import plotly.io as pio
+from math import gcd
 
 import string
 import random
@@ -18,25 +19,35 @@ from gretel_synthetics.timeseries_dgan.config import DGANConfig, OutputType
 
 
 # 0.0 RAW DATA ----
-time_line = 360
+time_line = 451
+
+
+# closest divisor to target function
+def closest_divisor(n, target):
+    closest = 1
+    for i in range(1, n + 1):
+        if n % i == 0 and abs(i - target) < abs(closest - target):
+            closest = i
+    return closest
 
 
 
-df = pd.DataFrame(np.random.random(size=(10,time_line)))
+# sample length calculation
+target_length = 15
+sample_length = closest_divisor(time_line, target_length)
+
+
+df = pd.DataFrame(500 + np.random.random(size=(3, time_line)) * 1000)
 df.columns = pd.date_range("2022-01-01", periods=time_line)
 
 
-random_words = ["Sunset", "Harmony", "Whisper"]
 
-
-df['cluster'] = np.random.choice(random_words, size=len(df))
 
 
 # PREPARE DF
 df_prepared = df
 df_prepared['listing_id'] = range(1, len(df_prepared)+1)
 df_prepared['listing_id'] = df_prepared.apply(lambda row: f'listing_{row["listing_id"]}', axis = 1)
-df_prepared = df_prepared.drop(columns=['cluster'])
 
 
 
@@ -47,7 +58,6 @@ df_long = df_prepared \
       var_name="date",
       value_name="value"
    )
-
 
 
 df_long \
@@ -65,7 +75,6 @@ df_long \
 
 
 # 2.0 MODELING & TRAINING ----
-sample_length = int(np.round(time_line / 24))
 
 # Train the model
 model = DGAN(DGANConfig(
@@ -79,9 +88,7 @@ model = DGAN(DGANConfig(
 model.train_dataframe(
    df = df_prepared,
    attribute_columns = ['listing_id'],
-   example_id_column = ['listing_id'],
-   # time_column = "date"
-   # df_style = "long"
+   example_id_column = ['listing_id']
 )
 
 

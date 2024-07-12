@@ -140,3 +140,9 @@ dp-checkpoints
 test-model*
 scratch/
 .conda/DLLs/_ctypes.pyd.conda_trash
+.Rproj.user
+00_data/combined_listings_svr.csv
+00_data/kmeans_cluster_svr.csv
+00_data/track_combined_calendar_prepared_svr.csv
+00_data/track_combined_calendar_svr.csv
+gretel-synthetics.Rproj
