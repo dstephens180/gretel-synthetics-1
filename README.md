@@ -1,7 +1,7 @@
 
 # Synthetic Time Series Data Generation with Gretel-Synthetics
 
-![Sample Plot](sample_plot.png)
+![Sample Plot](sample_timeseries_plot.png)
 
 ## Overview
 

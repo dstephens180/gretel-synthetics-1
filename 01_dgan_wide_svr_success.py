@@ -88,7 +88,7 @@ model_svr = DGAN(DGANConfig(
    max_sequence_len = time_line,
    sample_len = sample_length,
    batch_size = 3000,
-   epochs = 10000,
+   epochs = 7500,
 ))
 
 
@@ -100,68 +100,42 @@ model_svr.train_dataframe(
 )
 
 
-# LONG FORMAT
-model_svr.train_dataframe(
-   df = data_wide,
-   attribute_columns = ['cluster'], # if going long format, should be something like Sector, or Harmony/Bliss/Whisper if you included the real listing_ids; must be left in, otherwise an error about Bliss can't be converted to float.
-   example_id_column = ['cluster']
-)
-
-
 
 
 # 2.1 GENERATE SYNTHETIC DATA ----
-synthetic_df = model_svr.generate_dataframe(3)
+synthetic_df = model_svr.generate_dataframe(50)
 synthetic_df
+
+
+# HANDLE DUPLICATES ----
+def add_suffix_to_duplicates(df, column):
+    duplicates = df[column].duplicated(keep=False)
+    df['suffix'] = df.groupby(column).cumcount().astype(str)
+    # df.loc[duplicates, 'suffix'] = df.loc[duplicates, column] + '_' + df.loc[duplicates, 'suffix']
+    # df.drop(columns='suffix', inplace=True)
+    return df
+
+
+# Apply the function
+synthetic_df = add_suffix_to_duplicates(df = synthetic_df, column = 'cluster')
 
 
 # Reshape
 synthetic_long = synthetic_df \
    .melt(
-      id_vars=['cluster'],
+      id_vars=['cluster', 'suffix'],
       var_name="date",
       value_name="value"
    )
 
+
+synthetic_long['date'] = pd.to_datetime(synthetic_long['date'])
 synthetic_long
 
 
 
 
 
-
-# HANDLE DUPLICATES ----
-
-# Function to generate suffixes
-def generate_suffixes():
-    single_letters = list(string.ascii_lowercase)
-    multi_letters = [a+b for a in single_letters for b in single_letters]
-    return single_letters + multi_letters
-
-# Function to add suffixes to duplicates
-def add_suffix(group):
-    counts = group['cluster'].value_counts()
-    suffixes = counts[counts > 1].index
-    all_suffixes = generate_suffixes()
-    suffix_dict = {cluster: iter(all_suffixes) for cluster in suffixes}
-    
-    def suffix_cluster(cluster):
-        if cluster in suffix_dict:
-            try:
-                return f"{cluster}_{next(suffix_dict[cluster])}"
-            except StopIteration:
-                raise ValueError(f"Ran out of suffixes for {cluster}")
-        return cluster
-    
-    group['cluster'] = group['cluster'].apply(suffix_cluster)
-    return group
-
-
-# Apply the function to each group
-synthetic_long['date'] = pd.to_datetime(synthetic_long['date'])
-# synthetic_prepared = synthetic_long.groupby('date').apply(add_suffix).reset_index(drop=True)
-
-synthetic_prepared = synthetic_long
 
 
 
@@ -173,17 +147,24 @@ synthetic_prepared = synthetic_long
 
 # Function to randomly sample listings and concatenate
 def sample_and_concatenate(data_raw, synthetic_prepared, num_samples=5):
+    
     # Randomly sample unique clusters from synthetic_prepared
     sampled_clusters = random.sample(synthetic_prepared['cluster'].unique().tolist(), num_samples)
     
+    
+    # SYNTHETIC DATA ----
     # Filter synthetic_prepared for the sampled clusters
     filtered_synthetic = synthetic_prepared[synthetic_prepared['cluster'].isin(sampled_clusters)]
     filtered_synthetic['value'] = filtered_synthetic['value'].astype(float)
     filtered_synthetic['type'] = "synthetic"
+    filtered_synthetic['date'] = pd.to_datetime(filtered_synthetic['date'])
     
     
+    # REAL DATA ----
     filtered_df_long = data_raw[data_raw['cluster'].isin(sampled_clusters)]
     filtered_df_long['type'] = "real"
+    filtered_df_long['suffix'] = "real"
+    
     
     # Concatenate df_long and filtered_synthetic
     data_bound = pd.concat([filtered_df_long, filtered_synthetic], ignore_index=True)
@@ -191,8 +172,9 @@ def sample_and_concatenate(data_raw, synthetic_prepared, num_samples=5):
     return data_bound
 
 
+
 # Apply the function and get the concatenated dataframe
-results_bound = sample_and_concatenate(data_raw, synthetic_prepared, num_samples=3)
+results_bound = sample_and_concatenate(data_raw, synthetic_long, num_samples=10)
 
 
 results_bound.glimpse()
@@ -204,28 +186,13 @@ results_bound \
     .plot_timeseries(
         date_column = 'date',  
         value_column = 'value',
-        color_column = 'type',
+        color_column = 'suffix',
+        facet_ncol = 2,
         title = 'Real & Synthetic Data Comparison',
         engine = 'plotly',
         smooth = False,
         smooth_alpha = 0
     )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
