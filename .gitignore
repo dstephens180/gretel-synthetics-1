@@ -146,3 +146,7 @@ scratch/
 00_data/track_combined_calendar_prepared_svr.csv
 00_data/track_combined_calendar_svr.csv
 gretel-synthetics.Rproj
+00_data/cluster_row_number_svr.csv
+00_data/track_combined_calendar_synthetic_long_svr.csv
+.RData
+.Rhistory

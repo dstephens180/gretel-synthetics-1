@@ -20,18 +20,24 @@ from gretel_synthetics.timeseries_dgan.config import DGANConfig, OutputType
 
 # 0.0 RAW DATA ----
 
-# WIDE FORMAT----
-data_raw = pd.read_csv("00_data/track_combined_calendar_prepared_svr.csv")
+# LONG FORMAT
+data_raw = pd.read_csv("00_data/track_combined_calendar_synthetic_long_svr.csv")
+cluster_id_raw = pd.read_csv("00_data/cluster_row_number_svr.csv")
 
-data_raw['date'] = pd.to_datetime(data_raw['date'])
+# sample 5 id's from each cluster
+sampled_ids = data_raw.groupby('cluster')['id'].apply(lambda x: x.sample(n=1, random_state=42)).reset_index(drop=True)
+data_long = data_raw[data_raw['id'].isin(sampled_ids)]
 
-data_raw.glimpse()
+# prep & view
+data_long['date'] = pd.to_datetime(data_raw['date'])
+data_long.glimpse()
 
-data_raw \
+
+data_long \
     .plot_timeseries(
         date_column = 'date',  
         value_column = 'value',
-        color_column = 'cluster',
+        color_column = 'id',
         title = 'Real Data Only',
         engine = 'plotly',
         smooth = False,
@@ -56,8 +62,8 @@ def closest_divisor(n, target):
 
 
 # sample length calculation
-min_date = pd.to_datetime(data_raw['date'].min())
-max_date = pd.to_datetime(data_raw['date'].max())
+min_date = pd.to_datetime(data_long['date'].min())
+max_date = pd.to_datetime(data_long['date'].max())
 
 # always add 1 to include the last day
 time_line = ((max_date - min_date).days) + 1
@@ -68,43 +74,43 @@ sample_length = closest_divisor(time_line, target_length)
 
 
 
-# 1.1 PIVOT WIDER
-data_wide = data_raw \
-    .pivot(index="cluster", columns="date", values="value")
-
-
-# reset index and drop date column
-data_wide.reset_index(inplace=True)
-data_wide.columns.name = None
-
-
-
 
 
 # 2.0 MODELING & TRAINING ----
+data_long_prepared = pd.merge(data_long, cluster_id_raw, left_on = "cluster", right_on = "cluster", how = "left")
+data_long_prepared = data_long_prepared.drop(columns=["cluster", "cluster_number"])
+
+
+
+
 
 # Train the model
 model_svr = DGAN(DGANConfig(
    max_sequence_len = time_line,
    sample_len = sample_length,
    batch_size = 3000,
-   epochs = 10000,
+   epochs = 100,
 ))
 
 
-# WIDE FORMAT
-model_svr.train_dataframe(
-   df = data_wide,
-   attribute_columns = ['cluster'],
-   example_id_column = ['cluster']
-)
 
 
+
+### YOU LEFT OFF HERE.  CAN'T GET PASSED THE "EXAMPLE_ID_COLUMN" AND "TIME_COLUMN" ISSUE.
 # LONG FORMAT
+data_long_filtered = data_long_prepared[(data_long_prepared['id'] == "listing_id_1102") | (data_long_prepared['id'] == "listing_id_3975")]
+data_long_filtered.glimpse()
+
+
+data_long_filtered['date'] = data_long_filtered['date'].astype('int64') // 10**9
+data_long_filtered
+
 model_svr.train_dataframe(
-   df = data_wide,
-   attribute_columns = ['cluster'], # if going long format, should be something like Sector, or Harmony/Bliss/Whisper if you included the real listing_ids; must be left in, otherwise an error about Bliss can't be converted to float.
-   example_id_column = ['cluster']
+   df = data_long_filtered,
+#    df_style = "long",
+   time_column= "date",
+#    attribute_columns = ['id'],
+   example_id_column = ['id']
 )
 
 
@@ -173,6 +179,7 @@ synthetic_prepared = synthetic_long
 
 # Function to randomly sample listings and concatenate
 def sample_and_concatenate(data_raw, synthetic_prepared, num_samples=5):
+    
     # Randomly sample unique clusters from synthetic_prepared
     sampled_clusters = random.sample(synthetic_prepared['cluster'].unique().tolist(), num_samples)
     

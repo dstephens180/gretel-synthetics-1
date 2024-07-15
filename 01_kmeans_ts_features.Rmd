@@ -245,7 +245,7 @@ kmeans_filtered <-
 ```
 
 
-## Save to db
+## RANDOM WORDS
 ```{r}
 # random words
 random_words <- c("Sunset", "Harmony", "Whisper", "Radiant", "Serenity", "Meadow", "Bliss", "Crescent", "Willow", "Echo", "Glimmer", "Luminous", "Zephyr", "Eclipse", "Cascade", "Twilight", "Breeze", "Ethereal", "Velvet", "Azure")
@@ -268,12 +268,48 @@ cluster_id_connected <-
 cluster_id_connected %>%
   group_by(cluster) %>%
   count()
+```
+
+
+## Save for wide & long synthetic data
+```{r}
+cluster_row_number <- 
+  cluster_id_connected %>%
+  distinct(cluster, .keep_all = F) %>%
+  mutate(cluster_number = row_number())
 
 
 
+synthetic_input_long <- 
+  cluster_id_connected %>%
+  left_join(date_value_tbl, by = "id") %>%
+  mutate(id = str_c("listing_id_", id)) %>%
+  group_by(id) %>%
+  pad_by_time(
+    date,
+    .by = "day", 
+    .pad_value = NA,
+    .start_date = min(date_value_tbl$date), 
+    .end_date = max(date_value_tbl$date)
+  ) %>%
+  mutate(value = ts_impute_vec(value, period = 365, lambda = NULL)) %>%
+  fill(names(.), .direction = "updown") %>%
+  ungroup()
 
+
+
+synthetic_input_long %>% 
+  filter(id == "listing_id_737") %>%
+  plot_time_series(
+    date, value, .color_var = id, .smooth = F
+  )
+
+write_csv(synthetic_input_long, "00_data/track_combined_calendar_synthetic_long_svr.csv")
+write_csv(cluster_row_number, "00_data/cluster_row_number_svr.csv")
 write_csv(cluster_id_connected, "00_data/kmeans_cluster_svr.csv")
 ```
+
+
 
 
 # --
@@ -336,7 +372,8 @@ write_csv(kmeans_weighted_mean, "00_data/track_combined_calendar_prepared_svr.cs
 cluster_id_prepared <- 
   kmeans_prepared %>%
   select(cluster, id) %>%
-  left_join(selected_object_tbl, by = c("id" = "listing_id"))
+  left_join(selected_object_tbl, by = c("id" = "listing_id")) %>%
+  left_join(cluster_id_connected, by = "id")
 
 
 cluster_id_sf <- 
@@ -351,7 +388,7 @@ cluster_id_sf <-
 
 mapview(
   cluster_id_sf, 
-  zcol        = "cluster",
+  zcol        = "cluster.y",
   cex         = 5,
   color       = "white",
   legend      = F,
