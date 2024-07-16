@@ -12,6 +12,7 @@ import string
 import random
 
 from math import gcd
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 from gretel_synthetics.timeseries_dgan.dgan import DGAN
 from gretel_synthetics.timeseries_dgan.config import DGANConfig, OutputType
 
@@ -88,7 +89,7 @@ model_svr = DGAN(DGANConfig(
    max_sequence_len = time_line,
    sample_len = sample_length,
    batch_size = 3000,
-   epochs = 7500,
+   epochs = 10000,
 ))
 
 
@@ -193,6 +194,49 @@ results_bound \
         smooth = False,
         smooth_alpha = 0
     )
+
+
+
+
+
+# MAE CALCULATION ----
+
+# filter suffix either "real" or "0"
+filtered_df = results_bound[results_bound['suffix'].isin(['real', '0'])]
+
+# normalize
+normalized_df = filtered_df.copy()
+normalized_df['value'] = normalized_df.groupby('cluster')['value'].transform(lambda x: (x - x.mean()) / x.std())
+
+
+
+# split the normalized
+real_values = normalized_df[normalized_df['suffix'] == 'real']
+zero_values = normalized_df[normalized_df['suffix'] == '0']
+
+
+# blank results
+results = []
+
+
+# MAE for each cluster
+clusters = normalized_df['cluster'].unique()
+for cluster in clusters:
+    cluster_real_values = real_values[real_values['cluster'] == cluster]['value']
+    cluster_zero_values = zero_values[zero_values['cluster'] == cluster]['value']
+    
+    # confirm matching pairs of real and 0 values
+    if len(cluster_real_values) == len(cluster_zero_values):
+        mae = mean_absolute_error(cluster_real_values, cluster_zero_values)
+        results.append({'Cluster': cluster, 'MAE': mae})
+
+
+
+results_df = pd.DataFrame(results)
+
+results_df
+
+
 
 
 
